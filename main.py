@@ -32,6 +32,11 @@ os.makedirs("static", exist_ok=True)
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy"}
+
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
@@ -237,11 +242,11 @@ async def execute_comprehensive_stress_test():
     
     # Define all tests with their default parameters
     test_suite = [
-        ("prime", {"max_number": 1000000}),
-        ("matrix", {"size": 1000}),
-        ("fibonacci", {"max_n": 50000}),
-        ("sorting", {"array_size": 100000}),
-        ("monte_carlo", {"total_iterations": 10000000})
+        ("prime", {"max_number": 10000000}),
+        ("matrix", {"size": 10000}),
+        ("fibonacci", {"max_n": 500000}),
+        ("sorting", {"array_size": 1000000}),
+        ("monte_carlo", {"total_iterations": 100000000})
     ]
     
     comprehensive_results = []
