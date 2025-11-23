@@ -80,6 +80,7 @@ python test_stress.py
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/` | Main dashboard |
+| GET | `/health` | Health check |
 | GET | `/api/system-info` | System specifications |
 | GET | `/api/current-metrics` | Real-time CPU/memory stats |
 | POST | `/api/stress-test/prime` | Prime number generation test |
