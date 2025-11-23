@@ -114,6 +114,8 @@ python test_stress.py
 ├── requirements.txt        # Python dependencies
 └── templates/
     └── dashboard.html      # Web interface template
+└── .github/workflows
+    └── docker.yaml         # Build and push pipeline
 ```
 
 ### Key Classes
