@@ -107,6 +107,7 @@ python test_stress.py
 
 ```
 ├── main.py                 # FastAPI application & web server
+├── Dockerfile              # Builds container image
 ├── stress_tests.py         # CPU-intensive algorithms
 ├── cpu_monitor.py          # System monitoring utilities
 ├── test_stress.py          # Standalone testing script
