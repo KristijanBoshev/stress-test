@@ -26,6 +26,8 @@ A comprehensive CPU stress testing application built with FastAPI that pushes yo
 - **Temperature Sensors** - CPU temperature monitoring (when available)
 - **Performance Metrics** - Operations per second, execution time analysis
 - **Live Dashboard** - Real-time updates during stress tests
+- **Data Export** - Download detailed metric history as JSON for analysis
+
 
 ### 🌐 Web Interface
 - **Interactive Dashboard** - Clean, responsive web interface
