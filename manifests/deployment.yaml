@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cpu-stress-test
+  namespace: stress-test
+  labels:
+    app: cpu-stress-test
+spec:
+  replicas: 1  # VPA works best with 1 replica (scale vertically, not horizontally)
+  selector:
+    matchLabels:
+      app: cpu-stress-test
+  template:
+    metadata:
+      labels:
+        app: cpu-stress-test
+    spec:
+      containers:
+      - name: cpu-stress-test
+        image: kiko2001/cpu-stress-test:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 500m      # Starting point
+            memory: 1Gi    # Starting point
+          limits:
+            cpu: 8000m     # Max allowed by VPA
+            memory: 16Gi   # Max allowed by VPA
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+      imagePullSecrets:
+        - name: dockerhub-secret
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
