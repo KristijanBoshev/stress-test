@@ -1,0 +1,24 @@
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: cpu-stress-test-vpa
+  namespace: stress-test
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cpu-stress-test
+  updatePolicy:
+    updateMode: InPlaceOrRecreate
+  resourcePolicy:
+    containerPolicies:
+    - containerName: cpu-stress-test
+      minAllowed:
+        cpu: 500m
+        memory: 1Gi
+      maxAllowed:
+        cpu: 8000m      # Allow up to 8 CPU cores
+        memory: 16Gi    # Allow up to 16GB memory
+      controlledResources: ["cpu", "memory"]
+      # Use 95th percentile for recommendations
+      mode: Auto
