@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cpu-stress-test-ingress
+  namespace: stress-test
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+    traefik.ingress.kubernetes.io/router.tls.certresolver: "letsencrypt"
+    traefik.ingress.kubernetes.io/service.request-headers: X-Forwarded-Proto:https
+spec:
+  ingressClassName: "traefik"
+  rules:
+  - host: stresstest.kristijanboshev.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cpu-stress-test
+            port:
+              number: 8000
