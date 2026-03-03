@@ -35,6 +35,8 @@ Infrastructure Design and Crash-Prevention Through Vertical Scaling}
 
 \maketitle
 
+\textbf{Live test} \url{https://stresstest.kristijanboshev.com/}
+
 \begin{abstract}
 This paper analyzes a production-oriented CPU stress-testing platform implemented in Python/FastAPI and deployed on Kubernetes with Vertical Pod Autoscaler (VPA). The platform is intentionally designed to generate sustained high computational pressure through parallel algorithms, while preserving service availability and preventing process or pod crashes. The study focuses on three dimensions: (1) load generation characteristics at algorithm and runtime level, (2) infrastructure controls for health and resource isolation, and (3) scaling behavior under increasing demand. Results from architecture and code inspection show that stability is achieved through a layered strategy: admission control at API level, bounded resource envelopes in Kubernetes, adaptive CPU/memory rightsizing through VPA, and active health supervision via liveness/readiness probes. This design does not eliminate performance degradation under extreme pressure, but it prevents uncontrolled failure modes by converting overload into managed slowdowns and orchestrator-mediated recovery.
 \end{abstract}

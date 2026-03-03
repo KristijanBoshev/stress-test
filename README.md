@@ -59,6 +59,10 @@ python main.py
 
 ## 🚀 Usage
 
+### Live Deployment
+
+Test the app online at: **https://stresstest.kristijanboshev.com/**
+
 ### Web Dashboard
 1. Start the application:
    ```bash
