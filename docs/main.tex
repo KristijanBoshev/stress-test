@@ -1,0 +1,250 @@
+% !TeX root = main.tex
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{microtype}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{enumitem}
+
+\hypersetup{
+	colorlinks=true,
+	linkcolor=blue,
+	urlcolor=blue,
+	pdftitle={Load-Intensive FastAPI Stress Platform on Kubernetes: Infrastructure and Crash-Prevention Through Vertical Scaling},
+	pdfauthor={Stress-Test Project}
+}
+
+\setlength{\parskip}{0.6em}
+\setlength{\parindent}{0pt}
+\setlength{\emergencystretch}{2em}
+\onehalfspacing
+
+\title{Load-Intensive FastAPI Stress Platform on Kubernetes:\\
+Infrastructure Design and Crash-Prevention Through Vertical Scaling}
+\author{Stress-Test Project}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This paper analyzes a production-oriented CPU stress-testing platform implemented in Python/FastAPI and deployed on Kubernetes with Vertical Pod Autoscaler (VPA). The platform is intentionally designed to generate sustained high computational pressure through parallel algorithms, while preserving service availability and preventing process or pod crashes. The study focuses on three dimensions: (1) load generation characteristics at algorithm and runtime level, (2) infrastructure controls for health and resource isolation, and (3) scaling behavior under increasing demand. Results from architecture and code inspection show that stability is achieved through a layered strategy: admission control at API level, bounded resource envelopes in Kubernetes, adaptive CPU/memory rightsizing through VPA, and active health supervision via liveness/readiness probes. This design does not eliminate performance degradation under extreme pressure, but it prevents uncontrolled failure modes by converting overload into managed slowdowns and orchestrator-mediated recovery.
+\end{abstract}
+
+\section{Introduction}
+Modern backend systems often fail not because average load is high, but because peak demand exceeds assumptions encoded in runtime configuration and infrastructure limits. CPU-bound services are especially vulnerable: they saturate quickly, can starve event loops, and may trigger container restarts when memory pressure rises.
+
+The analyzed system addresses this challenge with a deliberate stress-first architecture. It exposes a web/API interface for triggering several computationally expensive workloads (prime generation, matrix multiplication, Fibonacci computations, parallel sorting, and Monte Carlo simulation). The same application also reports system telemetry and supports historical run analysis.
+
+The central research question is: \emph{How can a CPU-intensive microservice maintain operational stability under aggressive synthetic load, and to what extent does vertical scaling prevent crash conditions?}
+
+\section{System Overview}
+The application stack contains four principal layers:
+
+\begin{enumerate}[leftmargin=1.5em]
+	\item \textbf{Presentation and API layer:} FastAPI endpoints plus a dashboard UI for test orchestration and live metrics.
+	\item \textbf{Load engine:} A stress module implementing CPU-heavy algorithms with Python process pools across available cores.
+	\item \textbf{Monitoring layer:} A continuous collector (\texttt{psutil}) capturing CPU utilization, frequency, memory pressure, and optional temperature.
+	\item \textbf{Kubernetes control plane integration:} Deployment, Service, Ingress, and VPA manifests governing runtime health and resources.
+\end{enumerate}
+
+At runtime, a stress test request transitions through endpoint validation, background execution, metrics collection, result persistence, and status publication via REST/WebSocket.
+
+\section{Load Model and Computational Characteristics}
+
+\subsection{Workload Types}
+The stress engine uses heterogeneous CPU-intensive kernels:
+
+\begin{itemize}[leftmargin=1.5em]
+	\item \textbf{Prime generation:} segmented sieve over integer ranges.
+	\item \textbf{Matrix multiplication:} dense linear algebra with random matrices.
+	\item \textbf{Fibonacci sequence:} repeated iterative large-integer progression.
+	\item \textbf{Parallel merge sort:} recursive decomposition with multiprocessing at shallow depths.
+	\item \textbf{Monte Carlo $\pi$:} embarrassingly parallel random sampling.
+\end{itemize}
+
+This diversity is important: not all CPU loads stress the same bottleneck. Some are compute-arithmetic dominant, others include significant memory bandwidth and allocation overhead.
+
+\subsection{Parallel Execution Strategy}
+The platform derives worker count from logical CPUs and dispatches chunked work via process pools. In simplified form, end-to-end runtime can be approximated by:
+
+\[
+T_{total} \approx \max_i(T_{chunk,i}) + T_{startup} + T_{merge} + T_{ipc}
+\]
+
+where $T_{ipc}$ captures inter-process communication and result aggregation overhead. As worker count increases, ideal speedup is limited by sequential fractions and overhead, consistent with Amdahl-type behavior:
+
+\[
+S(n) = \frac{1}{(1-p) + \frac{p}{n} + \delta(n)}
+\]
+
+with $p$ as parallelizable fraction and $\delta(n)$ overhead growth.
+
+\subsection{Admission Control as Load Safety}
+The API enforces single-test concurrency through a global running-state guard. If a test is active, additional test-trigger requests return an error rather than enqueuing unbounded work. This is a critical anti-crash mechanism: it transforms accidental concurrent CPU storms into explicit back-pressure.
+
+\section{Infrastructure Architecture on Kubernetes}
+
+\subsection{Deployment Topology}
+The service runs in a dedicated namespace (\texttt{stress-test}) with:
+
+\begin{itemize}[leftmargin=1.5em]
+	\item \textbf{Deployment} (single replica),
+	\item \textbf{ClusterIP Service} exposing port 8000 internally,
+	\item \textbf{Ingress} via Traefik with TLS entrypoint,
+	\item \textbf{VPA} controlling CPU and memory requests/limits.
+\end{itemize}
+
+\subsection{Container Runtime Boundaries}
+The deployment defines:
+
+\begin{itemize}[leftmargin=1.5em]
+	\item requests: \texttt{500m CPU}, \texttt{1Gi memory}
+	\item limits: \texttt{8000m CPU}, \texttt{16Gi memory}
+\end{itemize}
+
+These values create a bounded operating envelope. The lower bound supports startup and baseline responsiveness; the upper bound prevents node-level resource monopolization and catastrophic noisy-neighbor effects.
+
+\subsection{Health Supervision}
+Both liveness and readiness probes target \texttt{/health}. Their role differs:
+
+\begin{itemize}[leftmargin=1.5em]
+	\item \textbf{Readiness probe:} removes overloaded/unready pods from traffic.
+	\item \textbf{Liveness probe:} restarts pods that become non-functional.
+\end{itemize}
+
+This dual-probe strategy prevents prolonged black-hole behavior where a pod exists but cannot safely serve requests.
+
+\section{Vertical Autoscaling Strategy}
+
+\subsection{Why Vertical Instead of Horizontal}
+The deployment intentionally uses one replica and VPA, matching workload properties:
+
+\begin{itemize}[leftmargin=1.5em]
+	\item stress runs are CPU/memory heavy inside a single process tree,
+	\item state and history are in-process memory,
+	\item admission policy allows one active test at a time.
+\end{itemize}
+
+Under this design, scaling \emph{up} one pod is more direct than scaling \emph{out} many pods.
+
+\subsection{VPA Policy Interpretation}
+VPA controls CPU and memory with:
+
+\begin{itemize}[leftmargin=1.5em]
+	\item minimum allowed: \texttt{500m CPU}, \texttt{1Gi}
+	\item maximum allowed: \texttt{8000m CPU}, \texttt{16Gi}
+	\item mode: \texttt{Auto}
+	\item update mode: \texttt{InPlaceOrRecreate}
+\end{itemize}
+
+Operationally, this means the pod can receive rightsized resources as observed demand grows, either in place or by controlled restart if required by platform constraints.
+
+\subsection{Crash-Prevention Mechanics of VPA}
+VPA contributes to crash prevention in three concrete ways:
+
+\begin{enumerate}[leftmargin=1.5em]
+	\item \textbf{CPU starvation mitigation:} raising CPU allocation reduces event-loop starvation and long tail latencies.
+	\item \textbf{Memory pressure mitigation:} higher memory ceilings reduce OOM risks during matrix-heavy or large-array runs.
+	\item \textbf{Demand adaptation:} automatic adjustment minimizes prolonged mismatch between requests and actual usage.
+\end{enumerate}
+
+Important limitation: VPA does not make the workload infinite-capacity. It prevents many crash classes by resizing within limits, but sustained demand beyond \texttt{8 CPU}/\texttt{16Gi} still requires architectural changes.
+
+\section{Observability and Experimental Methodology}
+
+\subsection{Telemetry Signals}
+The monitor collects periodic samples (0.5--1.0s cadence depending on path) of:
+
+\begin{itemize}[leftmargin=1.5em]
+	\item CPU utilization (aggregate and per-core snapshots),
+	\item CPU frequency,
+	\item memory percentage and absolute usage,
+	\item optional thermal readings,
+	\item test duration and peak values.
+\end{itemize}
+
+The system persists up to 1000 recent samples and records peak/average metrics per test execution.
+
+\subsection{Test Method}
+An infrastructure-focused evaluation should use escalating phases:
+
+\begin{enumerate}[leftmargin=1.5em]
+	\item \textbf{Baseline:} no stress test active; collect idle utilization and response times.
+	\item \textbf{Single-test peak:} run each algorithm with default then high parameters.
+	\item \textbf{Comprehensive sequence:} execute all stress tests serially at elevated sizes.
+	\item \textbf{Recovery:} measure readiness restoration and post-load stability.
+\end{enumerate}
+
+The primary dependent variables are crash incidence, restart count, failed probes, and sustained API responsiveness.
+
+\section{Results and Analysis}
+
+\subsection{Observed Throughput Profile}
+Representative benchmark values in project documentation indicate high computational throughput, including millions of operations per second for suitable kernels, with substantial CPU utilization. This confirms the platform creates node-visible pressure rather than synthetic no-op load.
+
+\subsection{Failure Modes Without Scaling Controls}
+Without the current controls, expected failure modes include:
+
+\begin{itemize}[leftmargin=1.5em]
+	\item concurrent test storms from repeated API calls,
+	\item memory spikes from large matrix/array allocations,
+	\item pod unavailability due to non-responsive process state,
+	\item unstable latency due to CPU throttling or starvation.
+\end{itemize}
+
+\subsection{How Scaling Prevents Crashing}
+The present architecture reduces failure probability through layered defense:
+
+\begin{longtable}{@{}p{0.27\textwidth} p{0.69\textwidth}@{}}
+\toprule
+\textbf{Control Layer} & \textbf{Stability Contribution} \\
+\midrule
+API admission guard & Prevents overlapping stress runs and unbounded concurrency. \\
+Kubernetes resource bounds & Ensures workloads remain inside predictable CPU/memory envelopes. \\
+VPA auto-rightsizing & Adapts requests/limits toward observed demand; reduces starvation and OOM risk. \\
+Readiness probe & Removes unhealthy instances from traffic before total failure is visible to users. \\
+Liveness probe & Triggers recovery restart for stuck or degraded process states. \\
+Ingress + Service isolation & Maintains controlled routing and avoids direct pod exposure. \\
+\bottomrule
+\end{longtable}
+
+The key insight is that crash prevention here is not a single autoscaler feature; it is the composition of policy, orchestration, and runtime safeguards.
+
+\section{Discussion}
+
+\subsection{Trade-offs of Single-Replica VPA Design}
+The chosen model prioritizes deterministic stress behavior and simpler operations, but introduces trade-offs:
+
+\begin{itemize}[leftmargin=1.5em]
+	\item during recreate-style VPA updates, temporary interruption is possible,
+	\item throughput remains bounded by one pod's vertical ceiling,
+	\item in-memory history is not durable across restarts.
+\end{itemize}
+
+For a stress lab or controlled benchmarking service, these trade-offs are often acceptable.
+
+\subsection{When Horizontal Scaling Becomes Necessary}
+If requirements evolve toward multi-tenant concurrency or strict high availability, architecture should move to:
+
+\begin{itemize}[leftmargin=1.5em]
+	\item stateless workers,
+	\item externalized result storage,
+	\item queue-based job admission,
+	\item optional HPA+VPA coordination strategy.
+\end{itemize}
+
+\section{Conclusion}
+This study shows that a CPU-stressing FastAPI application can remain operational under heavy load when scaling and reliability controls are designed as an integrated system. Vertical autoscaling is effective for preventing common crash modes (CPU starvation, memory exhaustion, unstable long-running pressure) when bounded by explicit policies and supported by health probes.
+
+The most important architectural principle is \emph{controlled pressure}: generate real load, but constrain and observe it at every layer. In this project, that principle is realized through one-test-at-a-time admission control, VPA-managed resource adaptation, strict CPU/memory boundaries, and orchestrator health checks. As a result, overload events are more likely to degrade gracefully than terminate catastrophically.
+
+\end{document}
