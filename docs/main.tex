@@ -13,6 +13,11 @@
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{tikz}
+\usepackage{caption}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, calc, patterns}
 
 \hypersetup{
 	colorlinks=true,
@@ -59,6 +64,65 @@ The application stack contains four principal layers:
 \end{enumerate}
 
 At runtime, a stress test request transitions through endpoint validation, background execution, metrics collection, result persistence, and status publication via REST/WebSocket.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=0.8cm and 1.2cm,
+    box/.style={rectangle, draw, rounded corners, minimum width=2.8cm, minimum height=0.9cm, align=center, font=\small},
+    layer/.style={rectangle, draw, dashed, rounded corners, inner sep=0.4cm, font=\small\bfseries},
+    arrow/.style={-{Stealth[length=3mm]}, thick},
+    label/.style={font=\scriptsize\itshape, text=gray}
+]
+
+% External user
+\node[box, fill=blue!10] (user) {User / Browser};
+
+% Ingress layer
+\node[layer, below=0.3cm of user, minimum width=10cm, minimum height=4.5cm] (ingress) {};
+\node[label, above=0.1cm of ingress.north west, anchor=west] {Kubernetes Ingress (Traefik + TLS)};
+
+\node[box, fill=orange!10, below=0.2cm of ingress.north, xshift=-3cm] (ingressbox) {Ingress\\Router};
+\node[box, fill=green!10, below=0.2cm of ingress.north, xshift=0cm] (service) {ClusterIP\\Service};
+\node[box, fill=purple!10, below=0.2cm of ingress.north, xshift=3cm] (vpa) {VPA\\Controller};
+
+% Pod layer
+\node[layer, below=1.2cm of ingress, minimum width=10cm, minimum height=5.5cm] (podlayer) {};
+\node[label, above=0.1cm of podlayer.north west, anchor=west] {Pod (single replica)};
+
+\node[box, fill=cyan!10, below=0.2cm of podlayer.north, xshift=-3cm] (fastapi) {FastAPI\\Endpoints};
+\node[box, fill=red!10, below=0.2cm of podlayer.north, xshift=0cm] (engine) {Stress Engine\\(Process Pools)};
+\node[box, fill=yellow!10, below=0.2cm of podlayer.north, xshift=3cm] (monitor) {Monitor\\(psutil)};
+
+% Bottom row inside pod
+\node[box, fill=gray!10, below=1.5cm of fastapi, xshift=-1.5cm] (admission) {Admission\\Control};
+\node[box, fill=gray!10, below=1.5cm of engine, xshift=1.5cm] (history) {Test History\\(in-memory)};
+
+% Arrows
+\draw[arrow] (user) -- (ingressbox);
+\draw[arrow] (ingressbox) -- (service);
+\draw[arrow] (service) -- (fastapi);
+\draw[arrow] (fastapi) -- (engine);
+\draw[arrow] (engine) -- (monitor);
+\draw[arrow] (monitor) -- (history);
+\draw[arrow] (fastapi) -- (admission);
+\draw[arrow, dashed] (vpa) -- (podlayer.north east);
+\draw[arrow, dashed] (monitor.east) -| (vpa.south);
+
+% Resource labels
+\node[font=\scriptsize, below=0.1cm of podlayer.south] {requests: 500m CPU / 1Gi mem \quad limits: 8000m CPU / 1Gi mem};
+
+\end{tikzpicture}
+\caption{System architecture: layered components from ingress to load engine, with VPA providing vertical scaling feedback.}
+\label{fig:architecture}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/Screenshot 2026-09-29 at 18.53.34.jpg}
+\caption{Dashboard UI: system info, current metrics, and test orchestration. Each algorithm (Prime Generation, Matrix Multiplication, Fibonacci Sequence, Parallel Sorting, Monte Carlo $\pi$) can be run individually, or all can be executed together via the comprehensive \textit{Run All Tests} button.}
+\label{fig:dashboard}
+\end{figure}
 
 \section{Load Model and Computational Characteristics}
 
@@ -124,6 +188,62 @@ Both liveness and readiness probes target \texttt{/health}. Their role differs:
 \end{itemize}
 
 This dual-probe strategy prevents prolonged black-hole behavior where a pod exists but cannot safely serve requests.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=0.6cm and 1.0cm,
+    k8sbox/.style={rectangle, draw, rounded corners, minimum width=2.2cm, minimum height=0.8cm, align=center, font=\small},
+    layer/.style={rectangle, draw, dashed, rounded corners, inner sep=0.3cm, font=\small\bfseries},
+    arrow/.style={-{Stealth[length=2.5mm]}, thick},
+    label/.style={font=\scriptsize\itshape, text=gray}
+]
+
+% Namespace boundary
+\node[layer, minimum width=9cm, minimum height=5.5cm] (ns) {};
+\node[label, above=0.1cm of ns.north west, anchor=west] {Namespace: \texttt{stress-test}};
+
+% Deployment
+\node[k8sbox, fill=blue!10, below=0.2cm of ns.north, xshift=-2.5cm] (deploy) {Deployment\\(1 replica)};
+
+% Service
+\node[k8sbox, fill=green!10, below=0.2cm of ns.north, xshift=0.5cm] (svc) {ClusterIP\\Service};
+
+% Ingress
+\node[k8sbox, fill=orange!10, below=0.2cm of ns.north, xshift=3.5cm] (ingress) {Ingress\\(Traefik)};
+
+% VPA
+\node[k8sbox, fill=purple!10, below=1.8cm of ns.north, xshift=2.5cm] (vpa) {VPA\\(Auto)};
+
+% Pod
+\node[k8sbox, fill=cyan!10, below=1.8cm of ns.north, xshift=-2cm] (pod) {Pod\\(FastAPI)};
+
+% Probes
+\node[k8sbox, fill=yellow!10, below=1.2cm of pod, xshift=-1cm] (liveness) {Liveness\\Probe};
+\node[k8sbox, fill=yellow!10, below=1.2cm of pod, xshift=1cm] (readiness) {Readiness\\Probe};
+
+% Arrows
+\draw[arrow] (deploy) -- (pod);
+\draw[arrow] (svc) -- (pod);
+\draw[arrow] (ingress) -- (svc);
+\draw[arrow, dashed] (vpa) -- (pod);
+\draw[arrow] (liveness) -- (pod);
+\draw[arrow] (readiness) -- (pod);
+
+% Resource labels
+\node[font=\scriptsize, below=0.1cm of pod.south] {requests: 500m/1Gi \quad limits: 8000m/16Gi};
+
+\end{tikzpicture}
+\caption{Kubernetes deployment topology: namespace isolation with Deployment, Service, Ingress, VPA, and health probes.}
+\label{fig:k8s-topology}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/Screenshot 2026-09-29 at 19.05.57.jpg}
+\caption{Kubernetes pod status after a comprehensive stress test run. Initially only two pods existed (\texttt{lhvrx} and \texttt{t9sx5}). After running all algorithms in parallel, the VPA recommended new resources and recreated the pods, resulting in multiple pods in various states (Running, Pending, ContainerCreating) within the \texttt{stress-test} namespace.}
+\label{fig:kubectl-pods}
+\end{figure}
 
 \section{Vertical Autoscaling Strategy}
 
@@ -192,6 +312,75 @@ The primary dependent variables are crash incidence, restart count, failed probe
 
 \subsection{Observed Throughput Profile}
 Representative benchmark values in project documentation indicate high computational throughput, including millions of operations per second for suitable kernels, with substantial CPU utilization. This confirms the platform creates node-visible pressure rather than synthetic no-op load.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    x=0.15cm, y=0.08cm,
+    grid/.style={gray!20, dashed},
+    axisline/.style={thick, ->},
+    plotline/.style={blue!70, thick, smooth},
+    memline/.style={red!60, thick, smooth, dashed},
+    anno/.style={font=\tiny, text=gray}
+]
+
+% Grid
+\foreach \x in {0,10,...,60} {
+    \draw[grid] (\x,0) -- (\x,105);
+}
+\foreach \y in {0,20,...,100} {
+    \draw[grid] (0,\y) -- (60,\y);
+}
+
+% Axes
+\draw[axisline] (0,0) -- (62,0) node[right, font=\small] {Time (s)};
+\draw[axisline] (0,0) -- (0,108) node[above, font=\small] {CPU \%};
+
+% Y-axis labels
+\foreach \y in {0,20,...,100} {
+    \node[left, font=\tiny] at (0,\y) {\y};
+}
+% X-axis labels
+\foreach \x in {0,10,...,60} {
+    \node[below, font=\tiny] at (\x,0) {\x};
+}
+
+% CPU utilization line
+\draw[plotline] plot coordinates {
+    (0,2) (2,15) (4,45) (6,78) (8,92) (10,95)
+    (12,88) (14,92) (16,97) (18,94) (20,96) (22,91) (25,89)
+    (27,82) (29,85) (31,90) (33,87) (35,84)
+    (37,78) (39,82) (41,88) (43,93) (45,90) (47,86) (50,83)
+    (52,87) (54,91) (56,94) (58,92) (60,89)
+};
+
+% Memory line (scaled: 18 Gi = 105 units)
+\draw[memline] plot coordinates {
+    (0,7) (5,9) (10,12) (15,27) (20,47) (25,54)
+    (30,50) (35,41) (40,71) (45,80) (50,75) (55,67) (60,60)
+};
+
+% Test phase dividers
+\draw[gray, dashed, thin] (10,0) -- (10,105);
+\draw[gray, dashed, thin] (25,0) -- (25,105);
+\draw[gray, dashed, thin] (35,0) -- (35,105);
+\draw[gray, dashed, thin] (50,0) -- (50,105);
+
+% Test phase labels
+\node[anno] at (5,100) {Prime};
+\node[anno] at (17,100) {Matrix};
+\node[anno] at (30,100) {Fibonacci};
+\node[anno] at (42,100) {Sorting};
+\node[anno] at (55,100) {Monte Carlo};
+
+% Legend
+\node[font=\small, anchor=west] at (35,30) {\textcolor{blue!70}{---} CPU \%};
+\node[font=\small, anchor=west] at (35,20) {\textcolor{red!60}{-~-} Memory (Gi)};
+
+\end{tikzpicture}
+\caption{Representative CPU utilization and memory consumption during a comprehensive stress test sequence. CPU remains above 80\% throughout, with memory peaking during matrix and sorting phases.}
+\label{fig:cpu-utilization}
+\end{figure}
 
 \subsection{Failure Modes Without Scaling Controls}
 Without the current controls, expected failure modes include:
