@@ -444,7 +444,7 @@ Representative benchmark values in project documentation indicate high computati
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-    x=0.15cm, y=0.045cm,
+    x=0.15cm, y=0.035cm,
     grid/.style={gray!20, dashed},
     axisline/.style={thick, ->},
     plotline/.style={green!60!black, thick, smooth},
@@ -454,18 +454,18 @@ Representative benchmark values in project documentation indicate high computati
 
 % Grid
 \foreach \x in {0,10,...,60} {
-    \draw[grid] (\x,0) -- (\x,105);
+    \draw[grid] (\x,0) -- (\x,260);
 }
-\foreach \y in {0,20,...,100} {
+\foreach \y in {0,50,...,250} {
     \draw[grid] (0,\y) -- (60,\y);
 }
 
 % Axes
 \draw[axisline] (0,0) -- (62,0) node[right, font=\small] {Time (s)};
-\draw[axisline] (0,0) -- (0,108) node[above, font=\small] {Response Time (ms)};
+\draw[axisline] (0,0) -- (0,268) node[above, font=\small] {Response Time (ms)};
 
 % Y-axis labels
-\foreach \y in {0,20,...,100} {
+\foreach \y in {0,50,...,250} {
     \node[left, font=\tiny] at (0,\y) {\y};
 }
 % X-axis labels
@@ -481,7 +481,7 @@ Representative benchmark values in project documentation indicate high computati
     (40,135) (43,130) (45,125) (48,120) (50,115) (53,110) (55,105) (58,100) (60,95)
 };
 
-% Throughput (requests completed per second, scaled)
+% Throughput (requests completed per second, scaled to 0-100)
 \draw[plotline2] plot coordinates {
     (0,95) (5,92) (8,88) (10,45) (12,35) (15,42) (18,38) (20,40)
     (22,48) (25,55) (28,62) (30,65) (33,68) (35,72) (38,75)
@@ -489,21 +489,21 @@ Representative benchmark values in project documentation indicate high computati
 };
 
 % Test phase dividers
-\draw[gray, dashed, thin] (10,0) -- (10,105);
-\draw[gray, dashed, thin] (25,0) -- (25,105);
-\draw[gray, dashed, thin] (35,0) -- (35,105);
-\draw[gray, dashed, thin] (50,0) -- (50,105);
+\draw[gray, dashed, thin] (10,0) -- (10,260);
+\draw[gray, dashed, thin] (25,0) -- (25,260);
+\draw[gray, dashed, thin] (35,0) -- (35,260);
+\draw[gray, dashed, thin] (50,0) -- (50,260);
 
 % Test phase labels
-\node[anno] at (5,100) {Prime};
-\node[anno] at (17,100) {Matrix};
-\node[anno] at (30,100) {Fibonacci};
-\node[anno] at (42,100) {Sorting};
-\node[anno] at (55,100) {Monte Carlo};
+\node[anno] at (5,250) {Prime};
+\node[anno] at (17,250) {Matrix};
+\node[anno] at (30,250) {Fibonacci};
+\node[anno] at (42,250) {Sorting};
+\node[anno] at (55,250) {Monte Carlo};
 
 % Legend
-\node[font=\small, anchor=west] at (35,30) {\textcolor{green!60!black}{---} Response Time (ms)};
-\node[font=\small, anchor=west] at (35,20) {\textcolor{red!60}{-~-} Throughput (req/s)};
+\node[font=\small, anchor=west] at (35,180) {\textcolor{green!60!black}{---} Response Time (ms)};
+\node[font=\small, anchor=west] at (35,160) {\textcolor{red!60}{-~-} Throughput (req/s, scaled)};
 
 \end{tikzpicture}
 \caption{API response time and throughput during comprehensive stress test. Response time spikes to $\sim$220ms during matrix multiplication (memory pressure), while throughput drops correspondingly. Both metrics recover as VPA adjusts resources.}
@@ -580,7 +580,7 @@ Representative benchmark values in project documentation indicate high computati
 \node[anno, align=center] at (25,30) {Horizontal scales better\\for embarrassingly parallel\\workloads (Monte Carlo)};
 
 \end{tikzpicture}
-\caption{Scaling speedup $S(n)$ for vertical (VPA) and horizontal (HPA) scaling, based on Amdahl's law with $p=0.85$ (vertical) and $p=0.95$ (horizontal). Horizontal scaling achieves higher peak speedup but requires stateless architecture.}
+\caption{Scaling speedup $S(n)$ for vertical (VPA) and horizontal (HPA) scaling. Horizontal scaling achieves higher peak speedup but requires stateless architecture.}
 \label{fig:scaling-comparison}
 \end{figure}
 
