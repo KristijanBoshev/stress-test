@@ -666,6 +666,40 @@ Horizontal scaling (HPA) becomes necessary when:
 
 For this stress-testing platform, vertical scaling is the correct choice \emph{given the current architecture}. The single-test admission policy means horizontal replicas would not increase throughput---they would only add overhead. However, if the product evolves toward a multi-tenant load-testing service (where users submit jobs to a queue), horizontal scaling with stateless workers becomes the natural path.
 
+\subsection{The VPA vs HPA Paradox: Theory vs Production Reality}
+
+This is the ultimate paradox of Kubernetes autoscaling: theoretical resource efficiency does not translate to production reality. While VPA appears superior on paper for resource density and simplicity, it suffers from fatal operational and architectural bottlenecks that make HPA the default choice for almost all production environments.
+
+The industry heavily favors HPA for several critical reasons:
+
+\begin{enumerate}[leftmargin=1.5em]
+	\item \textbf{VPA Requires Destructive Restarts (Usually).}
+	
+	The \emph{problem:} In Kubernetes, most VPA configurations cannot resize running containers on the fly. To change a pod's CPU or memory limits, Kubernetes has to kill the pod and recreate it with the new resource allocations.
+	
+	The \emph{production impact:} If an app takes 30 seconds to boot or requires a rolling drain, a VPA ``scale-up'' event behaves like a sudden crash-and-restart cycle. Doing this dynamically under heavy traffic spikes can trigger cascading failures. Even with experimental in-place resizing features, container runtimes still struggle with memory limit adjustments without kernel-level support.
+
+	\item \textbf{Hard Limits of Single-Node Scaling.}
+	
+	The \emph{problem:} VPA scales vertically (bigger CPU/RAM slices), which is ultimately bounded by the size of the underlying EC2 or bare-metal nodes.
+	
+	The \emph{production impact:} If a node has 64 cores and a monolith or service needs 70 cores, VPA cannot help. HPA, by contrast, spreads load across dozens or hundreds of smaller, cheaper nodes. It is infinitely more scalable horizontally than any vertical approach.
+
+	\item \textbf{High Availability and Failure Domains.}
+	
+	The \emph{problem:} Relying on VPA often means running fewer, larger instances (e.g., 2 massive pods instead of 10 medium pods).
+	
+	The \emph{production impact:} If 2 pods are scaled via VPA and one crashes due to a bug or memory leak, 50\% of compute capacity is lost. If 10 pods are managed by HPA, losing one pod only drops capacity by 10\%, making it trivial for the rest of the cluster to absorb the traffic.
+
+	\item \textbf{Kubernetes VPA and HPA Don't Play Nice Together.}
+	
+	The \emph{problem:} Standard HPA and VPA cannot be used on the same CPU/Memory metrics simultaneously.
+	
+	The \emph{production impact:} If HPA is scaling based on CPU utilization, and VPA suddenly doubles the pod's CPU allocation, the CPU utilization percentage drops instantly. HPA will panic, think traffic has died down, and aggressively scale in (destroying pods), which then causes VPA to scale back up. They end up fighting each other in an infinite, unstable loop.
+\end{enumerate}
+
+These production realities explain why HPA dominates the Kubernetes ecosystem despite VPA's theoretical advantages. For this stress-testing platform, VPA remains appropriate \emph{because} the workload is intentionally single-tenant and state-heavy. However, any evolution toward multi-tenant operation or high-availability requirements would necessitate a shift to HPA, despite the added architectural complexity.
+
 \subsection{When Horizontal Scaling Becomes Necessary}
 If requirements evolve toward multi-tenant concurrency or strict high availability, architecture should move to:
 
